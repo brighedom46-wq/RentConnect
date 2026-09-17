@@ -1,0 +1,168 @@
+﻿@page "/requests/new/{ApartmentId:int}"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+
+@using System.Security.Claims
+@using Microsoft.EntityFrameworkCore
+@using RentConnect.Data
+@using RentConnect.Models
+
+@inject ApplicationDbContext DbContext
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>Contact Landlord</PageTitle>
+
+<div class="container py-4">
+    <div class="request-container">
+        @if (apartment is null)
+        {
+            <div class="alert alert-danger">
+                The selected apartment could not be found.
+            </div>
+        }
+        else if (requestSaved)
+        {
+            <div class="alert alert-success">
+                <h4>Request sent successfully</h4>
+                <p class="mb-0">
+                    Your message has been sent directly to the landlord.
+                </p>
+            </div>
+
+            <a href="/apartments" class="btn btn-primary">
+                Return to Apartments
+            </a>
+        }
+        else
+        {
+            <div class="mb-4">
+                <h1>Contact Landlord</h1>
+
+                <p class="text-muted">
+                    Send an inquiry about
+                    <strong>@apartment.Title</strong>.
+                </p>
+            </div>
+
+            <EditForm Model="@serviceRequest"
+                      OnValidSubmit="@SaveRequest"
+                      FormName="service-request-form">
+
+                <DataAnnotationsValidator />
+                <ValidationSummary class="text-danger" />
+
+                <div class="mb-3">
+                    <label class="form-label">Your email</label>
+
+                    <InputText class="form-control"
+                               @bind-Value="serviceRequest.RenterEmail"
+                               readonly />
+
+                    <ValidationMessage For="@(() => serviceRequest.RenterEmail)" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Request type</label>
+
+                    <InputSelect class="form-select"
+                                 @bind-Value="serviceRequest.RequestType">
+                        <option value="General Inquiry">
+                            General Inquiry
+                        </option>
+                        <option value="Maintenance Request">
+                            Maintenance Request
+                        </option>
+                        <option value="Payment Question">
+                            Payment Question
+                        </option>
+                        <option value="Utility Question">
+                            Utility Question
+                        </option>
+                    </InputSelect>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Subject</label>
+
+                    <InputText class="form-control"
+                               @bind-Value="serviceRequest.Subject"
+                               placeholder="Enter the subject" />
+
+                    <ValidationMessage For="@(() => serviceRequest.Subject)" />
+                </div>
+
+                <div class="mb-4">
+                    <label class="form-label">Message</label>
+
+                    <InputTextArea class="form-control"
+                                   @bind-Value="serviceRequest.Message"
+                                   rows="6"
+                                   placeholder="Explain how the landlord can help" />
+
+                    <ValidationMessage For="@(() => serviceRequest.Message)" />
+                </div>
+
+                <button type="submit" class="btn btn-primary">
+                    Send Request
+                </button>
+
+                <a href="/apartments"
+                   class="btn btn-outline-secondary ms-2">
+                    Cancel
+                </a>
+            </EditForm>
+        }
+    </div>
+</div>
+
+<style>
+    .request-container {
+        max-width: 700px;
+        margin: auto;
+        padding: 30px;
+        background-color: white;
+        border-radius: 12px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+    }
+</style>
+
+@code {
+    [Parameter]
+    public int ApartmentId { get; set; }
+
+    private Apartment? apartment;
+
+    private ServiceRequest serviceRequest = new();
+
+    private bool requestSaved;
+
+    protected override async Task OnInitializedAsync()
+    {
+        apartment = await DbContext.Apartments
+            .FirstOrDefaultAsync(item => item.Id == ApartmentId);
+
+        var authenticationState =
+            await AuthenticationStateProvider.GetAuthenticationStateAsync();
+
+        var user = authenticationState.User;
+
+        serviceRequest.ApartmentId = ApartmentId;
+
+        serviceRequest.RenterId =
+            user.FindFirstValue(ClaimTypes.NameIdentifier) ?? string.Empty;
+
+        serviceRequest.RenterEmail =
+            user.Identity?.Name ?? string.Empty;
+    }
+
+    private async Task SaveRequest()
+    {
+        serviceRequest.Status = "Open";
+        serviceRequest.DateCreated = DateTime.UtcNow;
+
+        DbContext.ServiceRequests.Add(serviceRequest);
+        await DbContext.SaveChangesAsync();
+
+        requestSaved = true;
+    }
+}

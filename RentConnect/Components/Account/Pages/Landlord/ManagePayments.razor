@@ -1,0 +1,186 @@
+﻿@page "/landlord/payments"
+@rendermode InteractiveServer
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Landlord")]
+
+@using Microsoft.EntityFrameworkCore
+@using RentConnect.Data
+@using RentConnect.Models
+
+@inject ApplicationDbContext DbContext
+
+<PageTitle>Payments Received | RentConnect</PageTitle>
+
+<div class="container py-5">
+    <div class="mb-4">
+        <h1 class="fw-bold">Payments Received</h1>
+
+        <p class="text-muted">
+            View rent and utility payments made by renters.
+        </p>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary"></div>
+
+            <p class="text-muted mt-3">
+                Loading payments...
+            </p>
+        </div>
+    }
+    else if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert alert-danger">
+            @errorMessage
+        </div>
+    }
+    else if (payments.Count == 0)
+    {
+        <div class="alert alert-info">
+            No renter payments have been recorded.
+        </div>
+    }
+    else
+    {
+        <div class="row g-4 mb-4">
+            <div class="col-12 col-md-6">
+                <div class="card border-0 bg-primary text-white shadow-sm">
+                    <div class="card-body p-4">
+                        <div class="small">
+                            Total payments received
+                        </div>
+
+                        <div class="display-6 fw-bold">
+                            @GetTotalReceived().ToString("C")
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-12 col-md-6">
+                <div class="card border-0 bg-success text-white shadow-sm">
+                    <div class="card-body p-4">
+                        <div class="small">
+                            Completed transactions
+                        </div>
+
+                        <div class="display-6 fw-bold">
+                            @payments.Count
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card border-0 shadow-sm">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Renter</th>
+                            <th>Apartment</th>
+                            <th>Bill</th>
+                            <th>Amount</th>
+                            <th>Payment method</th>
+                            <th>Date</th>
+                            <th>Reference</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        @foreach (var payment in payments)
+                        {
+                            <tr>
+                                <td>
+                                    @payment.RenterEmail
+                                </td>
+
+                                <td>
+                                    <div class="fw-semibold">
+                                        @(payment.UtilityBill?.Apartment?.Title
+                                            ?? "Apartment")
+                                    </div>
+
+                                    <div class="small text-muted">
+                                        @(payment.UtilityBill?.Apartment?.Address
+                                            ?? "Address unavailable")
+                                    </div>
+                                </td>
+
+                                <td>
+                                    @(payment.UtilityBill?.BillType
+                                        ?? "Utility Bill")
+                                </td>
+
+                                <td class="fw-bold text-success">
+                                    @payment.Amount.ToString("C")
+                                </td>
+
+                                <td>
+                                    @payment.PaymentMethod
+                                </td>
+
+                                <td>
+                                    @(payment.PaymentDate
+                                        .ToLocalTime()
+                                        .ToString("MMM d, yyyy h:mm tt"))
+                                </td>
+
+                                <td>
+                                    <span class="font-monospace small">
+                                        @payment.TransactionReference
+                                    </span>
+                                </td>
+
+                                <td>
+                                    <span class="badge bg-success">
+                                        @payment.Status
+                                    </span>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private List<Payment> payments = [];
+
+    private bool isLoading = true;
+
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            payments = await DbContext.Payments
+                .AsNoTracking()
+                .Include(payment => payment.UtilityBill)
+                .ThenInclude(bill => bill!.Apartment)
+                .OrderByDescending(payment => payment.PaymentDate)
+                .ToListAsync();
+        }
+        catch
+        {
+            errorMessage =
+                "Payments could not be loaded. Please try again.";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private decimal GetTotalReceived()
+    {
+        return payments
+            .Where(payment => payment.Status == "Completed")
+            .Sum(payment => payment.Amount);
+    }
+}

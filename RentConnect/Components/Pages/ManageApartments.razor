@@ -1,0 +1,227 @@
+﻿@page "/landlord/apartments"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Landlord")]
+@rendermode InteractiveServer
+
+@using Microsoft.EntityFrameworkCore
+@using RentConnect.Data
+@using RentConnect.Models
+
+@inject ApplicationDbContext DbContext
+
+<PageTitle>Manage Apartments</PageTitle>
+
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1>Manage Apartments</h1>
+
+            <p class="text-muted mb-0">
+                Manage your apartment listings from anywhere.
+            </p>
+        </div>
+
+        <a href="/landlord/add-apartment"
+           class="btn btn-primary">
+            Add Apartment
+        </a>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary"
+                 role="status">
+            </div>
+
+            <p class="text-muted mt-3">
+                Loading apartments...
+            </p>
+        </div>
+    }
+    else if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert alert-danger">
+            @errorMessage
+        </div>
+    }
+    else if (apartments.Count == 0)
+    {
+        <div class="alert alert-info">
+            You have not added any apartments.
+        </div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-hover align-middle bg-white shadow-sm">
+                <thead class="table-light">
+                    <tr>
+                        <th>Apartment</th>
+                        <th>Address</th>
+                        <th>Rent</th>
+                        <th>Status</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    @foreach (var apartment in apartments)
+                    {
+                        <tr @key="apartment.Id">
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    @if (!string.IsNullOrWhiteSpace(
+                                        apartment.ImageUrl))
+                                    {
+                                        <img src="@apartment.ImageUrl"
+                                             alt="@apartment.Title"
+                                             class="apartment-thumbnail me-3" />
+                                    }
+                                    else
+                                    {
+                                        <div class="apartment-placeholder me-3">
+                                            🏠
+                                        </div>
+                                    }
+
+                                    <div>
+                                        <strong>@apartment.Title</strong>
+
+                                        <div class="small text-muted">
+                                            @apartment.Bedrooms bedroom(s),
+                                            @apartment.Bathrooms bathroom(s)
+                                        </div>
+                                    </div>
+                                </div>
+                            </td>
+
+                            <td>
+                                @apartment.Address
+                            </td>
+
+                            <td>
+                                @apartment.MonthlyRent.ToString("C")
+                            </td>
+
+                            <td>
+                                @if (apartment.IsAvailable)
+                                {
+                                    <span class="badge bg-success">
+                                        Available
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-secondary">
+                                        Unavailable
+                                    </span>
+                                }
+                            </td>
+
+                            <td class="text-end">
+                                <a class="btn btn-sm btn-warning me-2"
+                                   href="@($"/landlord/edit-apartment/{apartment.Id}")">
+                                    Edit
+                                </a>
+
+                                <button class="btn btn-sm btn-outline-primary me-2"
+                                        @onclick="() => ToggleAvailability(apartment)">
+                                    Change Status
+                                </button>
+
+                                <button class="btn btn-sm btn-outline-danger"
+                                        @onclick="() => DeleteApartment(apartment)">
+                                    Delete
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+<style>
+    .apartment-thumbnail {
+        width: 70px;
+        height: 55px;
+        object-fit: cover;
+        border-radius: 8px;
+        border: 1px solid #dee2e6;
+    }
+
+    .apartment-placeholder {
+        width: 70px;
+        height: 55px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        background-color: #f1f3f5;
+        border-radius: 8px;
+        font-size: 1.5rem;
+    }
+</style>
+
+@code {
+    private List<Apartment> apartments = [];
+
+    private bool isLoading = true;
+
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            apartments = await DbContext.Apartments
+                .OrderByDescending(apartment =>
+                    apartment.DatePosted)
+                .ToListAsync();
+        }
+        catch
+        {
+            errorMessage =
+                "Apartments could not be loaded. Please try again.";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task ToggleAvailability(
+        Apartment apartment)
+    {
+        try
+        {
+            apartment.IsAvailable =
+                !apartment.IsAvailable;
+
+            await DbContext.SaveChangesAsync();
+        }
+        catch
+        {
+            errorMessage =
+                "The apartment status could not be changed.";
+        }
+    }
+
+    private async Task DeleteApartment(
+        Apartment apartment)
+    {
+        try
+        {
+            DbContext.Apartments.Remove(apartment);
+
+            await DbContext.SaveChangesAsync();
+
+            apartments.Remove(apartment);
+        }
+        catch
+        {
+            errorMessage =
+                "The apartment could not be deleted. It may have related bills or requests.";
+        }
+    }
+}

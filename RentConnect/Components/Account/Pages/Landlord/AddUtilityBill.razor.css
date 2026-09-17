@@ -1,0 +1,74 @@
+﻿.bill-page {
+    width: 100%;
+    max-width: 850px;
+    margin: 0 auto;
+    padding: 40px 16px;
+}
+
+.bill-card {
+    background-color: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 16px;
+    padding: 32px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+}
+
+    .bill-card h1 {
+        margin-bottom: 8px;
+        color: #1f2937;
+        font-size: 2rem;
+        font-weight: 700;
+    }
+
+.form-label {
+    color: #374151;
+    font-weight: 600;
+}
+
+.form-control,
+.form-select {
+    min-height: 46px;
+    border-radius: 8px;
+}
+
+    .form-control:focus,
+    .form-select:focus {
+        border-color: #0d6efd;
+        box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.15);
+    }
+
+textarea.form-control {
+    min-height: 120px;
+}
+
+.btn-primary {
+    min-width: 150px;
+    min-height: 46px;
+    border-radius: 8px;
+    font-weight: 600;
+}
+
+.validation-message {
+    display: block;
+    margin-top: 5px;
+    color: #dc3545;
+    font-size: 0.875rem;
+}
+
+@media (max-width: 576px) {
+    .bill-page {
+        padding: 20px 10px;
+    }
+
+    .bill-card {
+        padding: 22px 16px;
+    }
+
+        .bill-card h1 {
+            font-size: 1.6rem;
+        }
+
+    .btn-primary {
+        width: 100%;
+    }
+}

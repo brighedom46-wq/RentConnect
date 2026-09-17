@@ -1,0 +1,548 @@
+﻿@page "/landlord/assign-unit"
+@rendermode InteractiveServer
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Landlord")]
+
+@using System.ComponentModel.DataAnnotations
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using RentConnect.Data
+@using RentConnect.Models
+
+@inject ApplicationDbContext DbContext
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject UserManager<ApplicationUser> UserManager
+
+<PageTitle>Assign Unit | RentConnect</PageTitle>
+
+<div class="container py-5">
+    <div class="mb-4">
+        <h1 class="fw-bold">Assign Unit</h1>
+
+        <p class="text-muted">
+            Assign an available apartment to a registered renter.
+        </p>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary"></div>
+
+            <p class="text-muted mt-3">
+                Loading apartments and renters...
+            </p>
+        </div>
+    }
+    else
+    {
+        @if (!string.IsNullOrWhiteSpace(errorMessage))
+        {
+            <div class="alert alert-danger">
+                @errorMessage
+            </div>
+        }
+
+        @if (!string.IsNullOrWhiteSpace(successMessage))
+        {
+            <div class="alert alert-success">
+                @successMessage
+            </div>
+        }
+
+        <div class="card border-0 shadow-sm mb-5">
+            <div class="card-body p-4">
+                <h3 class="mb-4">New unit assignment</h3>
+
+                @if (availableApartments.Count == 0)
+                {
+                    <div class="alert alert-warning">
+                        You do not have any available apartments.
+                    </div>
+                }
+                else if (availableRenters.Count == 0)
+                {
+                    <div class="alert alert-warning">
+                        There are no unassigned renters available.
+                    </div>
+                }
+                else
+                {
+                    <EditForm Model="@assignmentForm"
+                              OnValidSubmit="@CreateAssignment"
+                              FormName="assign-unit-form">
+
+                        <DataAnnotationsValidator />
+
+                        <ValidationSummary class="text-danger" />
+
+                        <div class="row">
+                            <div class="col-12 col-md-6 mb-3">
+                                <label class="form-label">
+                                    Apartment
+                                </label>
+
+                                <InputSelect class="form-select"
+                                             @bind-Value="assignmentForm.ApartmentId">
+
+                                    <option value="0">
+                                        Select an apartment
+                                    </option>
+
+                                    @foreach (var apartment in availableApartments)
+                                    {
+                                        <option value="@apartment.Id">
+                                            @apartment.Title — @apartment.Address
+                                        </option>
+                                    }
+                                </InputSelect>
+
+                                <ValidationMessage
+                                    For="@(() => assignmentForm.ApartmentId)" />
+                            </div>
+
+                            <div class="col-12 col-md-6 mb-3">
+                                <label class="form-label">
+                                    Renter
+                                </label>
+
+                                <InputSelect class="form-select"
+                                             @bind-Value="assignmentForm.RenterId">
+
+                                    <option value="">
+                                        Select a renter
+                                    </option>
+
+                                    @foreach (var renter in availableRenters)
+                                    {
+                                        <option value="@renter.Id">
+                                            @GetRenterName(renter) — @renter.Email
+                                        </option>
+                                    }
+                                </InputSelect>
+
+                                <ValidationMessage
+                                    For="@(() => assignmentForm.RenterId)" />
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="form-label">
+                                Move-in date
+                            </label>
+
+                            <InputDate class="form-control"
+                                       @bind-Value="assignmentForm.MoveInDate" />
+
+                            <ValidationMessage
+                                For="@(() => assignmentForm.MoveInDate)" />
+                        </div>
+
+                        <button type="submit"
+                                class="btn btn-primary"
+                                disabled="@isSaving">
+
+                            @if (isSaving)
+                            {
+                                <span class="spinner-border spinner-border-sm me-2">
+                                </span>
+
+                                <span>Assigning...</span>
+                            }
+                            else
+                            {
+                                <span>Assign Unit</span>
+                            }
+                        </button>
+                    </EditForm>
+                }
+            </div>
+        </div>
+
+        <div class="mb-3">
+            <h2 class="fw-bold">Current unit assignments</h2>
+
+            <p class="text-muted">
+                View renters currently assigned to your apartments.
+            </p>
+        </div>
+
+        @if (activeAssignments.Count == 0)
+        {
+            <div class="alert alert-info">
+                You do not have any active unit assignments.
+            </div>
+        }
+        else
+        {
+            <div class="card border-0 shadow-sm">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Apartment</th>
+                                <th>Renter</th>
+                                <th>Contact</th>
+                                <th>Move-in date</th>
+                                <th>Status</th>
+                                <th class="text-end">Action</th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+                            @foreach (var assignment in activeAssignments)
+                            {
+                                <tr @key="assignment.Id">
+                                    <td>
+                                        <div class="fw-semibold">
+                                            @assignment.Apartment?.Title
+                                        </div>
+
+                                        <div class="small text-muted">
+                                            @assignment.Apartment?.Address
+                                        </div>
+                                    </td>
+
+                                    <td>
+                                        <div class="fw-semibold">
+                                            @GetRenterName(assignment.Renter)
+                                        </div>
+
+                                        @if (!string.IsNullOrWhiteSpace(
+                                            assignment.Renter?.Occupation))
+                                        {
+                                            <div class="small text-muted">
+                                                @assignment.Renter.Occupation
+                                            </div>
+                                        }
+                                    </td>
+
+                                    <td>
+                                        <div>
+                                            @assignment.Renter?.Email
+                                        </div>
+
+                                        @if (!string.IsNullOrWhiteSpace(
+                                            assignment.Renter?.PhoneNumber))
+                                        {
+                                            <div class="small text-muted">
+                                                @assignment.Renter.PhoneNumber
+                                            </div>
+                                        }
+                                    </td>
+
+                                    <td>
+                                        @assignment.MoveInDate.ToString(
+                                            "MMM d, yyyy")
+                                    </td>
+
+                                    <td>
+                                        <span class="badge bg-success">
+                                            Active
+                                        </span>
+                                    </td>
+
+                                    <td class="text-end">
+                                        <button type="button"
+                                                class="btn btn-sm btn-outline-danger"
+                                                disabled="@isSaving"
+                                                @onclick="() => EndAssignment(
+                                                    assignment.Id)">
+                                            End Assignment
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private readonly AssignmentForm assignmentForm = new();
+
+    private List<Apartment> availableApartments = [];
+
+    private List<ApplicationUser> availableRenters = [];
+
+    private List<UnitAssignment> activeAssignments = [];
+
+    private string? landlordId;
+
+    private string? errorMessage;
+
+    private string? successMessage;
+
+    private bool isLoading = true;
+
+    private bool isSaving;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadPage();
+    }
+
+    private async Task LoadPage()
+    {
+        try
+        {
+            isLoading = true;
+            errorMessage = null;
+
+            var authenticationState =
+                await AuthenticationStateProvider
+                    .GetAuthenticationStateAsync();
+
+            landlordId = authenticationState.User
+                .FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (string.IsNullOrWhiteSpace(landlordId))
+            {
+                errorMessage =
+                    "Your landlord account could not be found.";
+
+                return;
+            }
+
+            activeAssignments = await DbContext.UnitAssignments
+                .AsNoTracking()
+                .Include(assignment => assignment.Apartment)
+                .Include(assignment => assignment.Renter)
+                .Where(assignment =>
+                    assignment.LandlordId == landlordId &&
+                    assignment.IsActive)
+                .OrderBy(assignment => assignment.Apartment!.Title)
+                .ToListAsync();
+
+            availableApartments = await DbContext.Apartments
+                .AsNoTracking()
+                .Where(apartment =>
+                    apartment.LandlordId == landlordId &&
+                    apartment.IsAvailable)
+                .OrderBy(apartment => apartment.Title)
+                .ToListAsync();
+
+            var rentersInRole =
+                await UserManager.GetUsersInRoleAsync("Renter");
+
+            var assignedRenterIds = await DbContext.UnitAssignments
+                .AsNoTracking()
+                .Where(assignment => assignment.IsActive)
+                .Select(assignment => assignment.RenterId)
+                .ToListAsync();
+
+            availableRenters = rentersInRole
+                .Where(renter =>
+                    !assignedRenterIds.Contains(renter.Id))
+                .OrderBy(renter => GetRenterName(renter))
+                .ToList();
+        }
+        catch
+        {
+            errorMessage =
+                "The unit assignment information could not be loaded.";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task CreateAssignment()
+    {
+        if (string.IsNullOrWhiteSpace(landlordId))
+        {
+            errorMessage =
+                "Your landlord account could not be found.";
+
+            return;
+        }
+
+        try
+        {
+            isSaving = true;
+            errorMessage = null;
+            successMessage = null;
+
+            var apartment = await DbContext.Apartments
+                .FirstOrDefaultAsync(apartment =>
+                    apartment.Id == assignmentForm.ApartmentId &&
+                    apartment.LandlordId == landlordId);
+
+            if (apartment is null)
+            {
+                errorMessage =
+                    "The selected apartment could not be found.";
+
+                return;
+            }
+
+            if (!apartment.IsAvailable)
+            {
+                errorMessage =
+                    "The selected apartment is no longer available.";
+
+                return;
+            }
+
+            var renter = await UserManager.FindByIdAsync(
+                assignmentForm.RenterId);
+
+            if (renter is null ||
+                !await UserManager.IsInRoleAsync(renter, "Renter"))
+            {
+                errorMessage =
+                    "The selected renter could not be found.";
+
+                return;
+            }
+
+            bool renterAlreadyAssigned =
+                await DbContext.UnitAssignments.AnyAsync(assignment =>
+                    assignment.RenterId == renter.Id &&
+                    assignment.IsActive);
+
+            if (renterAlreadyAssigned)
+            {
+                errorMessage =
+                    "This renter is already assigned to an apartment.";
+
+                return;
+            }
+
+            var assignment = new UnitAssignment
+            {
+                ApartmentId = apartment.Id,
+                RenterId = renter.Id,
+                LandlordId = landlordId,
+                MoveInDate = assignmentForm.MoveInDate,
+                AssignedDate = DateTime.UtcNow,
+                IsActive = true
+            };
+
+            apartment.IsAvailable = false;
+
+            DbContext.UnitAssignments.Add(assignment);
+
+            await DbContext.SaveChangesAsync();
+
+            successMessage =
+                $"{GetRenterName(renter)} was assigned to " +
+                $"{apartment.Title}.";
+
+            assignmentForm.ApartmentId = 0;
+            assignmentForm.RenterId = string.Empty;
+            assignmentForm.MoveInDate = DateTime.Today;
+
+            await LoadPage();
+        }
+        catch (DbUpdateException)
+        {
+            errorMessage =
+                "This apartment or renter already has an active assignment.";
+        }
+        catch
+        {
+            errorMessage =
+                "The unit could not be assigned. Please try again.";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task EndAssignment(int assignmentId)
+    {
+        if (string.IsNullOrWhiteSpace(landlordId))
+        {
+            return;
+        }
+
+        try
+        {
+            isSaving = true;
+            errorMessage = null;
+            successMessage = null;
+
+            var assignment = await DbContext.UnitAssignments
+                .Include(item => item.Apartment)
+                .Include(item => item.Renter)
+                .FirstOrDefaultAsync(item =>
+                    item.Id == assignmentId &&
+                    item.LandlordId == landlordId &&
+                    item.IsActive);
+
+            if (assignment is null)
+            {
+                errorMessage =
+                    "The assignment could not be found.";
+
+                return;
+            }
+
+            assignment.IsActive = false;
+            assignment.EndDate = DateTime.UtcNow;
+
+            if (assignment.Apartment is not null)
+            {
+                assignment.Apartment.IsAvailable = true;
+            }
+
+            string renterName =
+                GetRenterName(assignment.Renter);
+
+            string apartmentTitle =
+                assignment.Apartment?.Title ?? "the apartment";
+
+            await DbContext.SaveChangesAsync();
+
+            successMessage =
+                $"{renterName}'s assignment to " +
+                $"{apartmentTitle} has ended.";
+
+            await LoadPage();
+        }
+        catch
+        {
+            errorMessage =
+                "The assignment could not be ended. Please try again.";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private static string GetRenterName(ApplicationUser? renter)
+    {
+        if (renter is null)
+        {
+            return "Renter";
+        }
+
+        if (!string.IsNullOrWhiteSpace(renter.FullName))
+        {
+            return renter.FullName;
+        }
+
+        return renter.Email ?? "Renter";
+    }
+
+    private sealed class AssignmentForm
+    {
+        [Range(1, int.MaxValue,
+            ErrorMessage = "Please select an apartment.")]
+        public int ApartmentId { get; set; }
+
+        [Required(ErrorMessage = "Please select a renter.")]
+        public string RenterId { get; set; } = string.Empty;
+
+        [Required]
+        public DateTime MoveInDate { get; set; } = DateTime.Today;
+    }
+}

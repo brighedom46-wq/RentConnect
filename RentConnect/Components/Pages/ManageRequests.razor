@@ -1,0 +1,139 @@
+﻿@page "/landlord/requests"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Landlord")]
+@rendermode InteractiveServer
+
+@using Microsoft.EntityFrameworkCore
+@using RentConnect.Data
+@using RentConnect.Models
+
+@inject ApplicationDbContext DbContext
+
+<PageTitle>Renter Requests</PageTitle>
+
+<div class="container py-4">
+    <div class="mb-4">
+        <h1>Renter Requests</h1>
+        <p class="text-muted">
+            View and respond to renter inquiries and assistance requests.
+        </p>
+    </div>
+
+    @if (serviceRequests.Count == 0)
+    {
+        <div class="alert alert-info">
+            There are no renter requests.
+        </div>
+    }
+    else
+    {
+        <div class="row g-4">
+            @foreach (var request in serviceRequests)
+            {
+                <div class="col-lg-6" @key="request.Id">
+                    <div class="card h-100 shadow-sm request-card">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between gap-3">
+                                <div>
+                                    <span class="badge bg-primary mb-2">
+                                        @request.RequestType
+                                    </span>
+
+                                    <h4>@request.Subject</h4>
+                                </div>
+
+                                <div>
+                                    @if (request.Status == "Open")
+                                    {
+                                        <span class="badge bg-danger">
+                                            Open
+                                        </span>
+                                    }
+                                    else if (request.Status == "In Progress")
+                                    {
+                                        <span class="badge bg-warning text-dark">
+                                            In Progress
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-success">
+                                            Resolved
+                                        </span>
+                                    }
+                                </div>
+                            </div>
+
+                            <p class="mb-1">
+                                <strong>Apartment:</strong>
+                                @(request.Apartment?.Title ?? "Unknown apartment")
+                            </p>
+
+                            <p class="mb-1">
+                                <strong>Renter:</strong>
+                                <a href="mailto:@request.RenterEmail">
+                                    @request.RenterEmail
+                                </a>
+                            </p>
+
+                            <p class="text-muted small">
+                                @(request.DateCreated
+                                    .ToLocalTime()
+                                    .ToString("MMM d, yyyy h:mm tt"))
+                            </p>
+
+                            <hr />
+
+                            <p class="request-message">
+                                @request.Message
+                            </p>
+                        </div>
+
+                        <div class="card-footer bg-white">
+                            <button class="btn btn-sm btn-outline-warning me-2"
+                                    @onclick='() => ChangeStatus(request, "In Progress")'>
+                                Mark In Progress
+                            </button>
+
+                            <button class="btn btn-sm btn-outline-success"
+                                    @onclick='() => ChangeStatus(request, "Resolved")'>
+                                Mark Resolved
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+<style>
+    .request-card {
+        border: none;
+        border-radius: 12px;
+    }
+
+    .request-message {
+        white-space: pre-wrap;
+    }
+</style>
+
+@code {
+    private List<ServiceRequest> serviceRequests = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        serviceRequests = await DbContext.ServiceRequests
+            .Include(request => request.Apartment)
+            .OrderBy(request => request.Status == "Resolved")
+            .ThenByDescending(request => request.DateCreated)
+            .ToListAsync();
+    }
+
+    private async Task ChangeStatus(
+        ServiceRequest request,
+        string status)
+    {
+        request.Status = status;
+        await DbContext.SaveChangesAsync();
+    }
+}

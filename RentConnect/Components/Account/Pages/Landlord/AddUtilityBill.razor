@@ -1,0 +1,226 @@
+﻿@page "/landlord/add-utility-bill"
+@rendermode InteractiveServer
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Landlord")]
+
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using RentConnect.Data
+@using RentConnect.Models
+
+@inject ApplicationDbContext DbContext
+@inject UserManager<ApplicationUser> UserManager
+
+<PageTitle>Add Utility Bill</PageTitle>
+
+<div class="bill-page">
+    <div class="bill-card">
+        <h1>Add Utility Bill</h1>
+
+        <p class="text-muted">
+            Assign rent or another utility bill to a registered renter.
+        </p>
+
+        @if (!string.IsNullOrWhiteSpace(successMessage))
+        {
+            <div class="alert alert-success">
+                @successMessage
+            </div>
+        }
+
+        @if (!string.IsNullOrWhiteSpace(errorMessage))
+        {
+            <div class="alert alert-danger">
+                @errorMessage
+            </div>
+        }
+
+        @if (apartments.Count == 0)
+        {
+            <div class="alert alert-warning">
+                You must add an apartment before creating a utility bill.
+            </div>
+        }
+        else
+        {
+            <EditForm Model="bill"
+                      OnValidSubmit="SaveBill"
+                      FormName="add-utility-bill">
+
+                <DataAnnotationsValidator />
+
+                <ValidationSummary class="text-danger mb-3" />
+
+                <div class="mb-3">
+                    <label class="form-label">Apartment</label>
+
+                    <InputSelect class="form-select"
+                                 @bind-Value="bill.ApartmentId">
+
+                        <option value="0">Select an apartment</option>
+
+                        @foreach (var apartment in apartments)
+                        {
+                            <option value="@apartment.Id">
+                                @apartment.Title - @apartment.Address
+                            </option>
+                        }
+                    </InputSelect>
+
+                    <ValidationMessage For="@(() => bill.ApartmentId)" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Renter email</label>
+
+                    <InputText class="form-control"
+                               @bind-Value="bill.RenterEmail"
+                               placeholder="Enter the renter's registered email" />
+
+                    <ValidationMessage For="@(() => bill.RenterEmail)" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Bill type</label>
+
+                    <InputSelect class="form-select"
+                                 @bind-Value="bill.BillType">
+
+                        <option value="">Select bill type</option>
+                        <option value="Rent">Rent</option>
+                        <option value="Electricity">Electricity</option>
+                        <option value="Water">Water</option>
+                        <option value="Gas">Gas</option>
+                        <option value="Internet">Internet</option>
+                        <option value="Maintenance">Maintenance</option>
+                        <option value="Other">Other</option>
+                    </InputSelect>
+
+                    <ValidationMessage For="@(() => bill.BillType)" />
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Amount</label>
+
+                        <div class="input-group">
+                            <span class="input-group-text">$</span>
+
+                            <InputNumber class="form-control"
+                                         @bind-Value="bill.Amount" />
+                        </div>
+
+                        <ValidationMessage For="@(() => bill.Amount)" />
+                    </div>
+
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Due date</label>
+
+                        <InputDate class="form-control"
+                                   @bind-Value="bill.DueDate" />
+
+                        <ValidationMessage For="@(() => bill.DueDate)" />
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    <label class="form-label">Description</label>
+
+                    <InputTextArea class="form-control"
+                                   rows="4"
+                                   @bind-Value="bill.Description"
+                                   placeholder="Enter information about this bill" />
+
+                    <ValidationMessage For="@(() => bill.Description)" />
+                </div>
+
+                <button type="submit"
+                        class="btn btn-primary"
+                        disabled="@isSaving">
+
+                    @(isSaving ? "Saving..." : "Create Bill")
+                </button>
+            </EditForm>
+        }
+    </div>
+</div>
+
+@code {
+    private UtilityBill bill = CreateNewBill();
+
+    private List<Apartment> apartments = [];
+
+    private string? successMessage;
+
+    private string? errorMessage;
+
+    private bool isSaving;
+
+    protected override async Task OnInitializedAsync()
+    {
+        apartments = await DbContext.Apartments
+            .OrderBy(apartment => apartment.Title)
+            .ToListAsync();
+    }
+
+    private async Task SaveBill()
+    {
+        successMessage = null;
+        errorMessage = null;
+
+        if (bill.ApartmentId == 0)
+        {
+            errorMessage = "Please select an apartment.";
+            return;
+        }
+
+        string renterEmail = bill.RenterEmail.Trim();
+
+        var renter = await UserManager.FindByEmailAsync(renterEmail);
+
+        if (renter is null)
+        {
+            errorMessage =
+                "No registered renter was found with this email address.";
+
+            return;
+        }
+
+        isSaving = true;
+
+        try
+        {
+            bill.RenterId = renter.Id;
+            bill.RenterEmail = renter.Email ?? renterEmail;
+            bill.Status = "Unpaid";
+            bill.DateCreated = DateTime.UtcNow;
+            bill.DatePaid = null;
+
+            DbContext.UtilityBills.Add(bill);
+
+            await DbContext.SaveChangesAsync();
+
+            successMessage =
+                "The utility bill was created successfully.";
+
+            bill = CreateNewBill();
+        }
+        catch
+        {
+            errorMessage =
+                "The bill could not be saved. Please try again.";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private static UtilityBill CreateNewBill()
+    {
+        return new UtilityBill
+        {
+            DueDate = DateTime.Today.AddDays(30),
+            Status = "Unpaid"
+        };
+    }
+}

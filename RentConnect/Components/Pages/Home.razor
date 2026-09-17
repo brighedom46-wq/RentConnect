@@ -1,0 +1,122 @@
+﻿@page "/"
+
+<PageTitle>Home | RentConnect</PageTitle>
+
+<div class="container py-5">
+    <section class="text-center py-5">
+        <span class="badge bg-primary mb-3">
+            Welcome to RentConnect
+        </span>
+
+        <h1 class="display-4 fw-bold mb-3">
+            Renting made simple
+        </h1>
+
+        <p class="lead text-muted mx-auto mb-4"
+           style="max-width: 700px;">
+            RentConnect helps renters discover available apartments,
+            contact landlords, manage requests, and keep track of
+            rent and utility bills in one convenient place.
+        </p>
+
+        <div class="d-flex flex-wrap justify-content-center gap-3">
+            <a class="btn btn-primary btn-lg px-4"
+               href="/apartments">
+                Browse Apartments
+            </a>
+
+            <AuthorizeView>
+                <Authorized>
+                    <AuthorizeView Roles="Renter" Context="renterContext">
+                        <a class="btn btn-outline-primary btn-lg px-4"
+                           href="/my-bills">
+                            View My Bills
+                        </a>
+                    </AuthorizeView>
+
+                    <AuthorizeView Roles="Landlord" Context="landlordContext">
+                        <a class="btn btn-outline-primary btn-lg px-4"
+                           href="/landlord/apartments">
+                            Manage Apartments
+                        </a>
+                    </AuthorizeView>
+                </Authorized>
+
+                <NotAuthorized>
+                    <a class="btn btn-outline-primary btn-lg px-4"
+                       href="/Account/Register">
+                        Create Account
+                    </a>
+                </NotAuthorized>
+            </AuthorizeView>
+        </div>
+    </section>
+
+    <section class="row g-4 py-5">
+        <div class="col-12 col-md-4">
+            <div class="card h-100 border-0 shadow-sm">
+                <div class="card-body p-4 text-center">
+                    <div class="fs-1 mb-3">🏠</div>
+
+                    <h3 class="h5 fw-bold">
+                        Find a Home
+                    </h3>
+
+                    <p class="text-muted mb-0">
+                        Browse available apartments and view rent,
+                        location, bedrooms, and other important details.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 col-md-4">
+            <div class="card h-100 border-0 shadow-sm">
+                <div class="card-body p-4 text-center">
+                    <div class="fs-1 mb-3">💬</div>
+
+                    <h3 class="h5 fw-bold">
+                        Connect Directly
+                    </h3>
+
+                    <p class="text-muted mb-0">
+                        Send inquiries and service requests directly
+                        to landlords through your RentConnect account.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 col-md-4">
+            <div class="card h-100 border-0 shadow-sm">
+                <div class="card-body p-4 text-center">
+                    <div class="fs-1 mb-3">💳</div>
+
+                    <h3 class="h5 fw-bold">
+                        Manage Your Bills
+                    </h3>
+
+                    <p class="text-muted mb-0">
+                        View rent and utility bills, check due dates,
+                        and keep a clear record of your payments.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="bg-primary text-white rounded-4 p-5 text-center">
+        <h2 class="fw-bold">
+            Ready to find your next home?
+        </h2>
+
+        <p class="mb-4">
+            Explore available rental properties on RentConnect today.
+        </p>
+
+        <a class="btn btn-light btn-lg text-primary fw-semibold"
+           href="/apartments">
+            View Available Apartments
+        </a>
+    </section>
+</div>

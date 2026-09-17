@@ -1,0 +1,206 @@
+﻿@inherits LayoutComponentBase
+
+<div class="page-wrapper">
+    <header>
+        <nav class="navbar navbar-dark bg-primary shadow-sm">
+            <div class="container">
+                <NavLink class="navbar-brand fw-bold" href="/">
+                    RentConnect
+                </NavLink>
+
+                <div class="navigation-links">
+                    <NavLink class="nav-link" href="/" Match="NavLinkMatch.All">
+                        Home
+                    </NavLink>
+
+                    <NavLink class="nav-link" href="/apartments">
+                        Apartments
+                    </NavLink>
+
+                    <AuthorizeView Roles="Landlord">
+                        <Authorized>
+                            <NavLink class="nav-link" href="/landlord/requests">
+                                Renter Requests
+                            </NavLink>
+
+                            <NavLink class="nav-link"
+                                     href="/landlord/add-utility-bill">
+                                Add Bill
+                            </NavLink>
+
+                            <NavLink class="nav-link"
+                                     href="/landlord/bills">
+                                Manage Bills
+                            </NavLink>
+
+                            <NavLink class="nav-link"
+                                     href="/landlord/payments">
+                                Payments
+                            </NavLink>
+
+                            <NavLink class="nav-link" href="/landlord/apartments">
+                                Manage Apartments
+                            </NavLink>
+                            <a class="nav-link"
+                               href="/landlord/assign-unit">
+                                Assign Unit
+                            </a>
+
+                            <NavLink class="nav-link" href="/landlord/add-apartment">
+                                Add Apartment
+                            </NavLink>
+
+                        </Authorized>
+                    </AuthorizeView>
+
+                    <AuthorizeView Roles="Renter">
+                        <Authorized>
+
+                            <NavLink class="nav-link"
+                                     href="/renter/dashboard">
+                                Dashboard
+                            </NavLink>
+
+                            <NavLink class="nav-link"
+                                     href="/my-bills">
+                                My Bills
+                            </NavLink>
+
+                            <NavLink class="nav-link"
+                                     href="/my-payments">
+                                Payment History
+                            </NavLink>
+
+                            <NavLink class="nav-link"
+                                     href="/renter/profile">
+                                My Profile
+                            </NavLink>
+                        </Authorized>
+                    </AuthorizeView>
+
+                    <AuthorizeView>
+                        <Authorized>
+                            <NavLink class="nav-link" href="/my-requests">
+                                My Requests
+                            </NavLink>
+
+                            <a class="nav-link" href="/Account/Manage">
+                                My Account
+                            </a>
+
+                            <form action="Account/Logout" method="post">
+                                <AntiforgeryToken />
+
+                                <input type="hidden"
+                                       name="ReturnUrl"
+                                       value="" />
+
+                                <button type="submit"
+                                        class="nav-link logout-button">
+                                    Logout
+                                </button>
+                            </form>
+                        </Authorized>
+
+                        <NotAuthorized>
+                            <a class="nav-link" href="/Account/Login">
+                                Login
+                            </a>
+
+                            <a class="nav-link register-link" href="/Account/Register">
+                                Register
+                            </a>
+                        </NotAuthorized>
+                    </AuthorizeView>
+                </div>
+            </div>
+        </nav>
+    </header>
+
+    <main>
+        @Body
+    </main>
+
+    <footer class="footer">
+        <div class="container">
+            <span>© @DateTime.Now.Year RentConnect</span>
+            <span>Connecting landlords and renters directly.</span>
+        </div>
+    </footer>
+</div>
+
+<style>
+    .page-wrapper {
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        background-color: #f8f9fa;
+    }
+
+    main {
+        flex: 1;
+    }
+
+    .navbar .container {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 20px;
+    }
+
+    .navigation-links {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+
+        .navigation-links .nav-link {
+            color: rgba(255, 255, 255, 0.88);
+            padding: 8px 12px;
+            border-radius: 6px;
+            text-decoration: none;
+        }
+
+            .navigation-links .nav-link:hover,
+            .navigation-links .nav-link.active {
+                color: white;
+                background-color: rgba(255, 255, 255, 0.16);
+            }
+
+        .navigation-links .register-link {
+            border: 1px solid rgba(255, 255, 255, 0.7);
+        }
+
+    .footer {
+        background-color: white;
+        border-top: 1px solid #dee2e6;
+        padding: 20px 0;
+        margin-top: 40px;
+        color: #6c757d;
+    }
+
+        .footer .container {
+            display: flex;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+    @@media (max-width: 768px) {
+        .navbar .container {
+            flex-direction: column;
+            align-items: flex-start;
+            padding-top: 12px;
+            padding-bottom: 12px;
+        }
+
+        .navigation-links {
+            width: 100%;
+        }
+
+            .navigation-links .nav-link {
+                padding: 6px 9px;
+            }
+    }
+</style>

@@ -1,0 +1,291 @@
+﻿@page "/landlord/dashboard"
+@rendermode InteractiveServer
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Landlord")]
+
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.EntityFrameworkCore
+@using RentConnect.Data
+@using RentConnect.Models
+
+@inject ApplicationDbContext DbContext
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>Landlord Dashboard | RentConnect</PageTitle>
+
+<div class="container py-5">
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary"
+                 role="status">
+            </div>
+
+            <p class="text-muted mt-3">
+                Loading your dashboard...
+            </p>
+        </div>
+    }
+    else if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert alert-danger">
+            @errorMessage
+        </div>
+    }
+    else
+    {
+        <div class="mb-4">
+            <h1 class="fw-bold">Landlord Dashboard</h1>
+
+            <p class="text-muted">
+                Manage your apartments, renter requests, bills,
+                and payments.
+            </p>
+        </div>
+
+        <div class="row g-4 mb-5">
+            <div class="col-12 col-md-6 col-xl-3">
+                <div class="card h-100 border-0 shadow-sm">
+                    <div class="card-body p-4">
+                        <div class="text-muted mb-2">
+                            Apartments
+                        </div>
+
+                        <div class="display-6 fw-bold text-primary">
+                            @apartmentCount
+                        </div>
+
+                        <div class="small text-muted mb-3">
+                            @availableApartmentCount currently available
+                        </div>
+
+                        <a class="btn btn-outline-primary btn-sm"
+                           href="/landlord/apartments">
+                            Manage Apartments
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-12 col-md-6 col-xl-3">
+                <div class="card h-100 border-0 shadow-sm">
+                    <div class="card-body p-4">
+                        <div class="text-muted mb-2">
+                            Renter requests
+                        </div>
+
+                        <div class="display-6 fw-bold text-warning">
+                            @activeRequestCount
+                        </div>
+
+                        <div class="small text-muted mb-3">
+                            Active requests
+                        </div>
+
+                        <a class="btn btn-outline-warning btn-sm"
+                           href="/landlord/requests">
+                            Manage Requests
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-12 col-md-6 col-xl-3">
+                <div class="card h-100 border-0 shadow-sm">
+                    <div class="card-body p-4">
+                        <div class="text-muted mb-2">
+                            Outstanding bills
+                        </div>
+
+                        <div class="display-6 fw-bold text-danger">
+                            @outstandingBillCount
+                        </div>
+
+                        <div class="small text-muted mb-3">
+                            @outstandingBillTotal.ToString("C") remaining
+                        </div>
+
+                        <a class="btn btn-outline-danger btn-sm"
+                           href="/landlord/manage-bills">
+                            Manage Bills
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-12 col-md-6 col-xl-3">
+                <div class="card h-100 border-0 shadow-sm">
+                    <div class="card-body p-4">
+                        <div class="text-muted mb-2">
+                            Payments received
+                        </div>
+
+                        <div class="display-6 fw-bold text-success">
+                            @completedPaymentCount
+                        </div>
+
+                        <div class="small text-muted mb-3">
+                            @completedPaymentTotal.ToString("C") received
+                        </div>
+
+                        <a class="btn btn-outline-success btn-sm"
+                           href="/landlord/payments">
+                            View Payments
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <h2 class="fw-bold mb-3">Quick actions</h2>
+
+        <div class="row g-4">
+            <div class="col-12 col-md-4">
+                <a class="card h-100 border-0 shadow-sm text-decoration-none"
+                   href="/landlord/add-apartment">
+                    <div class="card-body p-4 text-center">
+                        <div class="display-5 mb-3">🏠</div>
+
+                        <h5 class="fw-bold text-dark">
+                            Add Apartment
+                        </h5>
+
+                        <p class="text-muted mb-0">
+                            Create a new apartment listing.
+                        </p>
+                    </div>
+                </a>
+            </div>
+
+            <div class="col-12 col-md-4">
+                <a class="card h-100 border-0 shadow-sm text-decoration-none"
+                   href="/landlord/add-utility-bill">
+                    <div class="card-body p-4 text-center">
+                        <div class="display-5 mb-3">🧾</div>
+
+                        <h5 class="fw-bold text-dark">
+                            Add Bill
+                        </h5>
+
+                        <p class="text-muted mb-0">
+                            Assign rent or a utility bill to a renter.
+                        </p>
+                    </div>
+                </a>
+            </div>
+
+            <div class="col-12 col-md-4">
+                <a class="card h-100 border-0 shadow-sm text-decoration-none"
+                   href="/landlord/requests">
+                    <div class="card-body p-4 text-center">
+                        <div class="display-5 mb-3">📨</div>
+
+                        <h5 class="fw-bold text-dark">
+                            Review Requests
+                        </h5>
+
+                        <p class="text-muted mb-0">
+                            Review inquiries and service requests.
+                        </p>
+                    </div>
+                </a>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private bool isLoading = true;
+    private string? errorMessage;
+
+    private int apartmentCount;
+    private int availableApartmentCount;
+    private int activeRequestCount;
+    private int outstandingBillCount;
+    private int completedPaymentCount;
+
+    private decimal outstandingBillTotal;
+    private decimal completedPaymentTotal;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var authenticationState =
+                await AuthenticationStateProvider
+                    .GetAuthenticationStateAsync();
+
+            string? landlordId = authenticationState.User
+                .FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (string.IsNullOrWhiteSpace(landlordId))
+            {
+                errorMessage =
+                    "Your landlord account could not be found.";
+
+                return;
+            }
+
+            apartmentCount = await DbContext.Apartments
+                .AsNoTracking()
+                .CountAsync(apartment =>
+                    apartment.LandlordId == landlordId);
+
+            availableApartmentCount = await DbContext.Apartments
+                .AsNoTracking()
+                .CountAsync(apartment =>
+                    apartment.LandlordId == landlordId &&
+                    apartment.IsAvailable);
+
+            activeRequestCount = await DbContext.ServiceRequests
+                .AsNoTracking()
+                .CountAsync(request =>
+                    request.Apartment != null &&
+                    request.Apartment.LandlordId == landlordId &&
+                    request.Status != "Completed");
+
+            IQueryable<UtilityBill> outstandingBills =
+                DbContext.UtilityBills
+                    .AsNoTracking()
+                    .Where(bill =>
+                        bill.Apartment != null &&
+                        bill.Apartment.LandlordId == landlordId &&
+                        bill.Status != "Paid");
+
+            outstandingBillCount =
+                await outstandingBills.CountAsync();
+
+            outstandingBillTotal =
+                await outstandingBills
+                    .Select(bill => (decimal?)bill.Amount)
+                    .SumAsync() ?? 0;
+
+            IQueryable<Payment> completedPayments =
+                DbContext.Payments
+                    .AsNoTracking()
+                    .Where(payment =>
+                        payment.UtilityBill != null &&
+                        payment.UtilityBill.Apartment != null &&
+                        payment.UtilityBill.Apartment.LandlordId ==
+                            landlordId &&
+                        payment.Status == "Completed");
+
+            completedPaymentCount =
+                await completedPayments.CountAsync();
+
+            completedPaymentTotal =
+                await completedPayments
+                    .Select(payment => (decimal?)payment.Amount)
+                    .SumAsync() ?? 0;
+        }
+        catch
+        {
+            errorMessage =
+                "The landlord dashboard could not be loaded. Please try again.";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+}

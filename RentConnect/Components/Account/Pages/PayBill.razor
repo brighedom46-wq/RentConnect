@@ -1,0 +1,315 @@
+﻿@page "/pay-bill/{BillId:int}"
+@rendermode InteractiveServer
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Renter")]
+
+@using System.ComponentModel.DataAnnotations
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.EntityFrameworkCore
+@using RentConnect.Data
+@using RentConnect.Models
+
+@inject ApplicationDbContext DbContext
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>Pay Bill</PageTitle>
+
+<div class="container py-5">
+    <div class="mx-auto" style="max-width: 700px;">
+
+        <div class="mb-4">
+            <h1 class="fw-bold">Pay Bill</h1>
+
+            <p class="text-muted">
+                Review the bill and record your payment.
+            </p>
+        </div>
+
+        <div class="alert alert-info">
+            This is a demonstration payment system. It does not
+            collect card numbers or transfer real money.
+        </div>
+
+        @if (isLoading)
+        {
+            <div class="text-center py-5">
+                <div class="spinner-border text-primary"></div>
+                <p class="text-muted mt-3">Loading bill...</p>
+            </div>
+        }
+        else if (!string.IsNullOrWhiteSpace(errorMessage))
+        {
+            <div class="alert alert-danger">
+                @errorMessage
+            </div>
+
+            <a class="btn btn-outline-primary"
+               href="/my-bills">
+                Return to My Bills
+            </a>
+        }
+        else if (paymentCompleted)
+        {
+            <div class="card border-0 shadow-sm">
+                <div class="card-body p-5 text-center">
+                    <div class="display-4 text-success mb-3">✓</div>
+
+                    <h2>Payment Successful</h2>
+
+                    <p class="text-muted">
+                        Your payment was recorded successfully.
+                    </p>
+
+                    <p>
+                        <strong>Reference:</strong>
+                        @transactionReference
+                    </p>
+
+                    <a class="btn btn-primary"
+                       href="/my-bills">
+                        Return to My Bills
+                    </a>
+                </div>
+            </div>
+        }
+        else if (bill is not null)
+        {
+            <div class="card border-0 shadow-sm">
+                <div class="card-body p-4">
+
+                    <div class="d-flex justify-content-between
+                        align-items-start mb-3">
+
+                        <div>
+                            <span class="badge bg-primary mb-2">
+                                @bill.BillType
+                            </span>
+
+                            <h3>@bill.Apartment?.Title</h3>
+
+                            <p class="text-muted mb-0">
+                                @bill.Apartment?.Address
+                            </p>
+                        </div>
+
+                        <span class="badge bg-warning text-dark">
+                            Unpaid
+                        </span>
+                    </div>
+
+                    <hr />
+
+                    <div class="row mb-4">
+                        <div class="col-6">
+                            <div class="text-muted small">Amount</div>
+
+                            <div class="fs-2 fw-bold text-success">
+                                @bill.Amount.ToString("C")
+                            </div>
+                        </div>
+
+                        <div class="col-6">
+                            <div class="text-muted small">Due date</div>
+
+                            <div class="fw-semibold">
+                                @(bill.DueDate.ToString("MMM d, yyyy"))
+                            </div>
+                        </div>
+                    </div>
+
+                    <p>@bill.Description</p>
+
+                    <EditForm Model="paymentInput"
+                              OnValidSubmit="ProcessPayment"
+                              FormName="pay-bill">
+
+                        <DataAnnotationsValidator />
+
+                        <div class="mb-4">
+                            <label class="form-label fw-semibold">
+                                Payment method
+                            </label>
+
+                            <InputSelect class="form-select"
+                                         @bind-Value="paymentInput.PaymentMethod">
+
+                                <option value="">
+                                    Select a payment method
+                                </option>
+
+                                <option value="Test Card">
+                                    Test Card
+                                </option>
+
+                                <option value="Test Bank Transfer">
+                                    Test Bank Transfer
+                                </option>
+
+                                <option value="Cash">
+                                    Cash
+                                </option>
+                            </InputSelect>
+
+                            <ValidationMessage For="@(() => paymentInput.PaymentMethod)" />
+                        </div>
+
+                        <button type="submit"
+                                class="btn btn-success w-100"
+                                disabled="@isProcessing">
+
+                            @(isProcessing
+                                ? "Processing..."
+                                : $"Pay {bill.Amount:C}")
+                        </button>
+                    </EditForm>
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public int BillId { get; set; }
+
+    private UtilityBill? bill;
+
+    private PaymentInputModel paymentInput = new();
+
+    private bool isLoading = true;
+
+    private bool isProcessing;
+
+    private bool paymentCompleted;
+
+    private string? errorMessage;
+
+    private string? renterId;
+
+    private string? renterEmail;
+
+    private string? transactionReference;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var authenticationState =
+                await AuthenticationStateProvider
+                    .GetAuthenticationStateAsync();
+
+            renterId = authenticationState.User
+                .FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            renterEmail = authenticationState.User
+                .FindFirst(ClaimTypes.Email)?.Value
+                ?? authenticationState.User.Identity?.Name;
+
+            if (string.IsNullOrWhiteSpace(renterId))
+            {
+                errorMessage =
+                    "Your account information could not be found.";
+
+                return;
+            }
+
+            bill = await DbContext.UtilityBills
+                .Include(item => item.Apartment)
+                .FirstOrDefaultAsync(item =>
+                    item.Id == BillId &&
+                    item.RenterId == renterId);
+
+            if (bill is null)
+            {
+                errorMessage =
+                    "This bill could not be found or does not belong to your account.";
+
+                return;
+            }
+
+            if (bill.Status == "Paid")
+            {
+                errorMessage = "This bill has already been paid.";
+            }
+        }
+        catch
+        {
+            errorMessage =
+                "The bill could not be loaded. Please try again.";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task ProcessPayment()
+    {
+        if (bill is null ||
+            string.IsNullOrWhiteSpace(renterId))
+        {
+            return;
+        }
+
+        if (bill.Status == "Paid")
+        {
+            errorMessage = "This bill has already been paid.";
+            return;
+        }
+
+        isProcessing = true;
+        errorMessage = null;
+
+        await using var databaseTransaction =
+            await DbContext.Database.BeginTransactionAsync();
+
+        try
+        {
+            transactionReference =
+                $"RC-{DateTime.UtcNow:yyyyMMddHHmmss}-" +
+                Guid.NewGuid()
+                    .ToString("N")[..8]
+                    .ToUpperInvariant();
+
+            var payment = new Payment
+            {
+                UtilityBillId = bill.Id,
+                RenterId = renterId,
+                RenterEmail = renterEmail ?? bill.RenterEmail,
+                Amount = bill.Amount,
+                PaymentMethod = paymentInput.PaymentMethod,
+                TransactionReference = transactionReference,
+                Status = "Completed",
+                PaymentDate = DateTime.UtcNow
+            };
+
+            DbContext.Payments.Add(payment);
+
+            bill.Status = "Paid";
+            bill.DatePaid = DateTime.UtcNow;
+
+            await DbContext.SaveChangesAsync();
+            await databaseTransaction.CommitAsync();
+
+            paymentCompleted = true;
+        }
+        catch
+        {
+            await databaseTransaction.RollbackAsync();
+
+            errorMessage =
+                "The payment could not be recorded. Please try again.";
+        }
+        finally
+        {
+            isProcessing = false;
+        }
+    }
+
+    private sealed class PaymentInputModel
+    {
+        [Required(ErrorMessage =
+            "Please select a payment method.")]
+        public string PaymentMethod { get; set; } = string.Empty;
+    }
+}

@@ -1,0 +1,253 @@
+﻿@page "/renter/dashboard"
+@rendermode InteractiveServer
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Renter")]
+
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using RentConnect.Data
+
+@inject UserManager<ApplicationUser> UserManager
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject ApplicationDbContext DbContext
+
+<PageTitle>Renter Dashboard | RentConnect</PageTitle>
+
+<div class="container py-5">
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary"></div>
+
+            <p class="text-muted mt-3">
+                Loading your dashboard...
+            </p>
+        </div>
+    }
+    else if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert alert-danger">
+            @errorMessage
+        </div>
+    }
+    else
+    {
+        <div class="mb-5">
+            <h1 class="fw-bold">
+                Welcome, @GetFirstName()
+            </h1>
+
+            <p class="text-muted">
+                Manage your apartment requests, bills, payments,
+                and personal information.
+            </p>
+        </div>
+
+        <div class="row g-4 mb-5">
+            <div class="col-12 col-md-4">
+                <div class="card h-100 border-0 shadow-sm">
+                    <div class="card-body p-4">
+                        <div class="text-muted">
+                            Outstanding bills
+                        </div>
+
+                        <div class="display-6 fw-bold text-warning">
+                            @unpaidBillCount
+                        </div>
+
+                        <div class="fw-semibold">
+                            @unpaidTotal.ToString("C") remaining
+                        </div>
+
+                        <a class="btn btn-outline-primary mt-3"
+                           href="/my-bills">
+                            View Bills
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-12 col-md-4">
+                <div class="card h-100 border-0 shadow-sm">
+                    <div class="card-body p-4">
+                        <div class="text-muted">
+                            My requests
+                        </div>
+
+                        <div class="display-6 fw-bold text-primary">
+                            @requestCount
+                        </div>
+
+                        <div class="fw-semibold">
+                            Submitted requests
+                        </div>
+
+                        <a class="btn btn-outline-primary mt-3"
+                           href="/my-requests">
+                            View Requests
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-12 col-md-4">
+                <div class="card h-100 border-0 shadow-sm">
+                    <div class="card-body p-4">
+                        <div class="text-muted">
+                            Completed payments
+                        </div>
+
+                        <div class="display-6 fw-bold text-success">
+                            @paymentCount
+                        </div>
+
+                        <div class="fw-semibold">
+                            @totalPaid.ToString("C") paid
+                        </div>
+
+                        <a class="btn btn-outline-primary mt-3"
+                           href="/my-payments">
+                            Payment History
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <h2 class="h4 fw-bold mb-4">
+            Quick actions
+        </h2>
+
+        <div class="row g-4">
+            <div class="col-12 col-md-6">
+                <a class="card border-0 shadow-sm text-decoration-none
+                    text-dark h-100"
+                   href="/apartments">
+                    <div class="card-body p-4">
+                        <div class="fs-2 mb-3">🏠</div>
+
+                        <h3 class="h5 fw-bold">
+                            Browse Apartments
+                        </h3>
+
+                        <p class="text-muted mb-0">
+                            View available apartments and contact landlords.
+                        </p>
+                    </div>
+                </a>
+            </div>
+
+            <div class="col-12 col-md-6">
+                <a class="card border-0 shadow-sm text-decoration-none
+                    text-dark h-100"
+                   href="/renter/profile">
+                    <div class="card-body p-4">
+                        <div class="fs-2 mb-3">👤</div>
+
+                        <h3 class="h5 fw-bold">
+                            Update My Profile
+                        </h3>
+
+                        <p class="text-muted mb-0">
+                            Update your personal and contact information.
+                        </p>
+                    </div>
+                </a>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private ApplicationUser? currentUser;
+
+    private bool isLoading = true;
+
+    private string? errorMessage;
+
+    private int unpaidBillCount;
+
+    private int requestCount;
+
+    private int paymentCount;
+
+    private decimal unpaidTotal;
+
+    private decimal totalPaid;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var authenticationState =
+                await AuthenticationStateProvider
+                    .GetAuthenticationStateAsync();
+
+            currentUser = await UserManager.GetUserAsync(
+                authenticationState.User);
+
+            if (currentUser is null)
+            {
+                errorMessage =
+                    "Your account information could not be found.";
+
+                return;
+            }
+
+            string renterId = currentUser.Id;
+
+            unpaidBillCount = await DbContext.UtilityBills
+                .AsNoTracking()
+                .CountAsync(bill =>
+                    bill.RenterId == renterId &&
+                    bill.Status != "Paid");
+
+            unpaidTotal = await DbContext.UtilityBills
+                .AsNoTracking()
+                .Where(bill =>
+                    bill.RenterId == renterId &&
+                    bill.Status != "Paid")
+                .SumAsync(bill => (decimal?)bill.Amount) ?? 0;
+
+            requestCount = await DbContext.ServiceRequests
+                .AsNoTracking()
+                .CountAsync(request =>
+                    request.RenterId == renterId);
+
+            paymentCount = await DbContext.Payments
+                .AsNoTracking()
+                .CountAsync(payment =>
+                    payment.RenterId == renterId &&
+                    payment.Status == "Completed");
+
+            totalPaid = await DbContext.Payments
+                .AsNoTracking()
+                .Where(payment =>
+                    payment.RenterId == renterId &&
+                    payment.Status == "Completed")
+                .SumAsync(payment => (decimal?)payment.Amount) ?? 0;
+        }
+        catch
+        {
+            errorMessage =
+                "Your dashboard could not be loaded. Please try again.";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private string GetFirstName()
+    {
+        if (string.IsNullOrWhiteSpace(currentUser?.FullName))
+        {
+            return "Renter";
+        }
+
+        return currentUser.FullName
+            .Trim()
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .First();
+    }
+}

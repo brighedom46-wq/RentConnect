@@ -1,0 +1,382 @@
+﻿@page "/apartments"
+@rendermode InteractiveServer
+
+@using Microsoft.EntityFrameworkCore
+@using RentConnect.Data
+@using RentConnect.Models
+
+@inject ApplicationDbContext DbContext
+
+<PageTitle>Available Apartments</PageTitle>
+
+<div class="container py-4">
+    <div class="mb-4">
+        <h1>Available Apartments</h1>
+
+        <p class="text-muted">
+            Find a comfortable apartment and contact the landlord directly.
+        </p>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary"
+                 role="status">
+            </div>
+
+            <p class="text-muted mt-3">
+                Loading apartments...
+            </p>
+        </div>
+    }
+    else if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert alert-danger">
+            @errorMessage
+        </div>
+    }
+    else if (apartments.Count == 0)
+    {
+        <div class="alert alert-info">
+            No apartments are available right now.
+        </div>
+    }
+    else
+    {
+        <div class="row g-4">
+            @foreach (var apartment in apartments)
+            {
+                var imageUrls = GetApartmentImages(apartment);
+                var currentIndex =
+                    GetCurrentImageIndex(apartment.Id, imageUrls.Count);
+
+                <div class="col-md-6 col-lg-4">
+                    <div class="card h-100 shadow-sm">
+                        @if (imageUrls.Count > 0)
+                        {
+                            <div class="apartment-gallery">
+                                <img src="@imageUrls[currentIndex]"
+                                     class="apartment-image"
+                                     alt="@($"{apartment.Title} image {currentIndex + 1}")" />
+
+                                @if (imageUrls.Count > 1)
+                                {
+                                    <button type="button"
+                                            class="gallery-arrow gallery-arrow-left"
+                                            title="Previous image"
+                                            @onclick="() => PreviousImage(
+                                                                                        apartment.Id,
+                                                                                        imageUrls.Count)">
+
+<span aria-hidden="true">
+                                            &#10094;
+                                        </span>
+                                    </button>
+
+                                    <button type="button"
+                                            class="gallery-arrow gallery-arrow-right"
+                                            title="Next image"
+                                            @onclick="() => NextImage(
+                                                                                        apartment.Id,
+                                                                                        imageUrls.Count)">
+
+<span aria-hidden="true">
+                                            &#10095;
+                                        </span>
+                                    </button>
+
+                                    <div class="image-counter">
+                                        @(currentIndex + 1) / @imageUrls.Count
+                                    </div>
+
+                                    <div class="gallery-indicators">
+                                        @for (var index = 0;
+                                              index < imageUrls.Count;
+                                              index++)
+                                        {
+                                            var selectedIndex = index;
+
+                                            <button type="button"
+                                                    class="gallery-dot
+                                                @(selectedIndex == currentIndex
+                                                    ? "active"
+                                                    : null)"
+                                                    title="@($"View image {selectedIndex + 1}")"
+                                                    @onclick="() => SelectImage(
+                                                                                                        apartment.Id,
+                                                                                                        selectedIndex)">
+</button>
+                                        }
+                                    </div>
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="apartment-placeholder">
+                                Apartment photo
+                            </div>
+                        }
+
+                        <div class="card-body">
+                            <h4 class="card-title">
+                                @apartment.Title
+                            </h4>
+
+                            <p class="text-muted">
+                                @apartment.Address
+                            </p>
+
+                            <h5 class="text-success">
+                                @apartment.MonthlyRent.ToString("C") per month
+                            </h5>
+
+                            <p>
+                                @apartment.Bedrooms bedroom(s) ·
+                                @apartment.Bathrooms bathroom(s)
+                            </p>
+
+                            <p class="card-text">
+                                @apartment.Description
+                            </p>
+
+                            @if (imageUrls.Count > 1)
+                            {
+                                <div class="small text-muted">
+                                    @imageUrls.Count photos available
+                                </div>
+                            }
+                        </div>
+
+                        <div class="card-footer bg-white">
+                            <a class="btn btn-primary w-100"
+                               href="@($"/requests/new/{apartment.Id}")">
+                                Contact Landlord
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private List<Apartment> apartments = [];
+
+    private readonly Dictionary<int, int> currentImageIndexes = [];
+
+    private bool isLoading = true;
+
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            apartments = await DbContext.Apartments
+                .AsNoTracking()
+                .Include(apartment => apartment.Images)
+                .Where(apartment => apartment.IsAvailable)
+                .OrderByDescending(apartment => apartment.DatePosted)
+                .ToListAsync();
+
+            foreach (var apartment in apartments)
+            {
+                currentImageIndexes[apartment.Id] = 0;
+            }
+        }
+        catch
+        {
+            errorMessage =
+                "Apartments could not be loaded. Please try again.";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private static List<string> GetApartmentImages(
+        Apartment apartment)
+    {
+        var imageUrls = apartment.Images
+            .Where(image =>
+                !string.IsNullOrWhiteSpace(image.ImageUrl))
+            .OrderByDescending(image => image.IsPrimary)
+            .ThenBy(image => image.DateUploaded)
+            .Select(image => image.ImageUrl)
+            .Distinct()
+            .ToList();
+
+        if (imageUrls.Count == 0 &&
+            !string.IsNullOrWhiteSpace(apartment.ImageUrl))
+        {
+            imageUrls.Add(apartment.ImageUrl);
+        }
+
+        return imageUrls;
+    }
+
+    private int GetCurrentImageIndex(
+        int apartmentId,
+        int imageCount)
+    {
+        if (imageCount == 0)
+        {
+            return 0;
+        }
+
+        if (!currentImageIndexes.TryGetValue(
+            apartmentId,
+            out var currentIndex))
+        {
+            currentImageIndexes[apartmentId] = 0;
+            return 0;
+        }
+
+        if (currentIndex < 0 || currentIndex >= imageCount)
+        {
+            currentImageIndexes[apartmentId] = 0;
+            return 0;
+        }
+
+        return currentIndex;
+    }
+
+    private void PreviousImage(
+        int apartmentId,
+        int imageCount)
+    {
+        if (imageCount <= 1)
+        {
+            return;
+        }
+
+        var currentIndex =
+            GetCurrentImageIndex(apartmentId, imageCount);
+
+        currentImageIndexes[apartmentId] =
+            currentIndex == 0
+                ? imageCount - 1
+                : currentIndex - 1;
+    }
+
+    private void NextImage(
+        int apartmentId,
+        int imageCount)
+    {
+        if (imageCount <= 1)
+        {
+            return;
+        }
+
+        var currentIndex =
+            GetCurrentImageIndex(apartmentId, imageCount);
+
+        currentImageIndexes[apartmentId] =
+            (currentIndex + 1) % imageCount;
+    }
+
+    private void SelectImage(
+        int apartmentId,
+        int selectedIndex)
+    {
+        currentImageIndexes[apartmentId] = selectedIndex;
+    }
+}
+
+<style>
+    .apartment-gallery {
+        position: relative;
+        height: 240px;
+        overflow: hidden;
+        background-color: #212529;
+    }
+
+    .apartment-image {
+        width: 100%;
+        height: 240px;
+        display: block;
+        object-fit: cover;
+    }
+
+    .apartment-placeholder {
+        height: 240px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background-color: #e9ecef;
+        color: #6c757d;
+        font-size: 1.1rem;
+    }
+
+    .gallery-arrow {
+        position: absolute;
+        top: 50%;
+        width: 42px;
+        height: 42px;
+        border: none;
+        border-radius: 50%;
+        color: white;
+        background-color: rgba(0, 0, 0, 0.6);
+        font-size: 1.5rem;
+        line-height: 1;
+        transform: translateY(-50%);
+        cursor: pointer;
+        z-index: 2;
+    }
+
+        .gallery-arrow:hover {
+            background-color: rgba(0, 0, 0, 0.85);
+        }
+
+    .gallery-arrow-left {
+        left: 12px;
+    }
+
+    .gallery-arrow-right {
+        right: 12px;
+    }
+
+    .image-counter {
+        position: absolute;
+        right: 12px;
+        bottom: 12px;
+        padding: 4px 10px;
+        color: white;
+        background-color: rgba(0, 0, 0, 0.65);
+        border-radius: 20px;
+        font-size: 0.8rem;
+    }
+
+    .gallery-indicators {
+        position: absolute;
+        left: 50%;
+        bottom: 14px;
+        display: flex;
+        gap: 6px;
+        transform: translateX(-50%);
+    }
+
+    .gallery-dot {
+        width: 9px;
+        height: 9px;
+        padding: 0;
+        border: 1px solid white;
+        border-radius: 50%;
+        background-color: transparent;
+        cursor: pointer;
+    }
+
+        .gallery-dot.active {
+            background-color: white;
+        }
+
+    .card {
+        border: none;
+        border-radius: 12px;
+        overflow: hidden;
+    }
+</style>

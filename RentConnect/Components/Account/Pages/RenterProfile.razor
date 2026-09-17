@@ -1,0 +1,435 @@
+﻿@page "/renter/profile"
+@rendermode InteractiveServer
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Renter")]
+
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Identity
+@using RentConnect.Data
+
+@inject UserManager<ApplicationUser> UserManager
+@inject NavigationManager NavigationManager
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>My Profile | RentConnect</PageTitle>
+
+<div class="container py-5">
+    <div class="mx-auto" style="max-width: 900px;">
+        <div class="mb-4">
+            <h1 class="fw-bold">My Profile</h1>
+
+            <p class="text-muted">
+                Add or update your personal and contact information.
+            </p>
+        </div>
+
+        @if (isLoading)
+        {
+            <div class="text-center py-5">
+                <div class="spinner-border text-primary"></div>
+
+                <p class="text-muted mt-3">
+                    Loading your profile...
+                </p>
+            </div>
+        }
+        else if (!string.IsNullOrWhiteSpace(loadError))
+        {
+            <div class="alert alert-danger">
+                @loadError
+            </div>
+        }
+        else
+        {
+            @if (!string.IsNullOrWhiteSpace(successMessage))
+            {
+                <div class="alert alert-success">
+                    @successMessage
+                </div>
+            }
+
+            @if (!string.IsNullOrWhiteSpace(saveError))
+            {
+                <div class="alert alert-danger">
+                    @saveError
+                </div>
+            }
+
+            <EditForm Model="profile"
+                      OnValidSubmit="SaveProfile"
+                      FormName="renter-profile">
+                <DataAnnotationsValidator />
+
+                <div class="card border-0 shadow-sm">
+                    <div class="card-body p-4 p-md-5">
+                        <h2 class="h5 fw-bold mb-4">
+                            Personal information
+                        </h2>
+
+                        <div class="row g-4">
+                            <div class="col-12">
+                                <label class="form-label">
+                                    Email address
+                                </label>
+
+                                <input class="form-control"
+                                       value="@emailAddress"
+                                       disabled />
+                            </div>
+
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">
+                                    Full name
+                                </label>
+
+                                <InputText class="form-control"
+                                           @bind-Value="profile.FullName" />
+
+                                <ValidationMessage For="() => profile.FullName" />
+                            </div>
+
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">
+                                    Phone number
+                                </label>
+
+                                <InputText class="form-control"
+                                           placeholder="Example: 403-555-0100"
+                                           @bind-Value="profile.PhoneNumber" />
+
+                                <ValidationMessage For="() => profile.PhoneNumber" />
+                            </div>
+
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">
+                                    Date of birth
+                                </label>
+
+                                <InputDate class="form-control"
+                                           @bind-Value="profile.DateOfBirth" />
+
+                                <ValidationMessage For="() => profile.DateOfBirth" />
+                            </div>
+
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">
+                                    Gender
+                                </label>
+
+                                <InputSelect class="form-select"
+                                             @bind-Value="profile.Gender">
+                                    <option value="">Select an option</option>
+                                    <option value="Female">Female</option>
+                                    <option value="Male">Male</option>
+                                    <option value="Non-binary">Non-binary</option>
+                                    <option value="Prefer not to say">
+                                        Prefer not to say
+                                    </option>
+                                </InputSelect>
+                            </div>
+
+                            <div class="col-12">
+                                <label class="form-label">
+                                    Occupation
+                                </label>
+
+                                <InputText class="form-control"
+                                           @bind-Value="profile.Occupation" />
+                            </div>
+                        </div>
+
+                        <hr class="my-5" />
+
+                        <h2 class="h5 fw-bold mb-4">
+                            Current address
+                        </h2>
+
+                        <div class="row g-4">
+                            <div class="col-12">
+                                <label class="form-label">
+                                    Street address
+                                </label>
+
+                                <InputText class="form-control"
+                                           @bind-Value="profile.CurrentAddress" />
+                            </div>
+
+                            <div class="col-12 col-md-4">
+                                <label class="form-label">
+                                    City
+                                </label>
+
+                                <InputText class="form-control"
+                                           @bind-Value="profile.City" />
+                            </div>
+
+                            <div class="col-12 col-md-4">
+                                <label class="form-label">
+                                    Province
+                                </label>
+
+                                <InputSelect class="form-select"
+                                             @bind-Value="profile.Province">
+                                    <option value="">Select province</option>
+                                    <option value="Alberta">Alberta</option>
+                                    <option value="British Columbia">
+                                        British Columbia
+                                    </option>
+                                    <option value="Manitoba">Manitoba</option>
+                                    <option value="New Brunswick">
+                                        New Brunswick
+                                    </option>
+                                    <option value="Newfoundland and Labrador">
+                                        Newfoundland and Labrador
+                                    </option>
+                                    <option value="Nova Scotia">
+                                        Nova Scotia
+                                    </option>
+                                    <option value="Ontario">Ontario</option>
+                                    <option value="Prince Edward Island">
+                                        Prince Edward Island
+                                    </option>
+                                    <option value="Quebec">Quebec</option>
+                                    <option value="Saskatchewan">
+                                        Saskatchewan
+                                    </option>
+                                    <option value="Northwest Territories">
+                                        Northwest Territories
+                                    </option>
+                                    <option value="Nunavut">Nunavut</option>
+                                    <option value="Yukon">Yukon</option>
+                                </InputSelect>
+                            </div>
+
+                            <div class="col-12 col-md-4">
+                                <label class="form-label">
+                                    Postal code
+                                </label>
+
+                                <InputText class="form-control"
+                                           placeholder="A1A 1A1"
+                                           @bind-Value="profile.PostalCode" />
+                            </div>
+                        </div>
+
+                        <hr class="my-5" />
+
+                        <h2 class="h5 fw-bold mb-4">
+                            Emergency contact
+                        </h2>
+
+                        <div class="row g-4">
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">
+                                    Contact name
+                                </label>
+
+                                <InputText class="form-control"
+                                           @bind-Value="profile.EmergencyContactName" />
+                            </div>
+
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">
+                                    Contact phone number
+                                </label>
+
+                                <InputText class="form-control"
+                                           @bind-Value="profile.EmergencyContactPhone" />
+
+                                <ValidationMessage For="() => profile.EmergencyContactPhone" />
+                            </div>
+                        </div>
+
+                        <button class="btn btn-primary btn-lg mt-5"
+                                type="submit"
+                                disabled="@isSaving">
+                            @if (isSaving)
+                            {
+                                <span class="spinner-border spinner-border-sm me-2">
+                                </span>
+
+                                <span>Saving...</span>
+                            }
+                            else
+                            {
+                                <span>Save Profile</span>
+                            }
+                        </button>
+                    </div>
+                </div>
+            </EditForm>
+        }
+    </div>
+</div>
+
+@code {
+    private ApplicationUser? currentUser;
+
+    private ProfileInput profile = new();
+
+    private string emailAddress = string.Empty;
+
+    private bool isLoading = true;
+
+    private bool isSaving;
+
+    private string? loadError;
+
+    private string? saveError;
+
+    private string? successMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var authenticationState =
+                await AuthenticationStateProvider
+                    .GetAuthenticationStateAsync();
+
+            currentUser = await UserManager.GetUserAsync(
+                authenticationState.User);
+
+            if (currentUser is null)
+            {
+                loadError =
+                    "Your account information could not be found.";
+
+                return;
+            }
+
+            emailAddress = currentUser.Email ?? string.Empty;
+
+            profile = new ProfileInput
+            {
+                FullName = currentUser.FullName,
+                PhoneNumber = currentUser.PhoneNumber ?? string.Empty,
+                DateOfBirth = currentUser.DateOfBirth,
+                Gender = currentUser.Gender,
+                Occupation = currentUser.Occupation,
+                CurrentAddress = currentUser.CurrentAddress,
+                City = currentUser.City,
+                Province = currentUser.Province,
+                PostalCode = currentUser.PostalCode,
+                EmergencyContactName = currentUser.EmergencyContactName,
+                EmergencyContactPhone = currentUser.EmergencyContactPhone
+            };
+        }
+        catch
+        {
+            loadError =
+                "Your profile could not be loaded. Please try again.";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task SaveProfile()
+    {
+        saveError = null;
+        successMessage = null;
+
+        if (currentUser is null)
+        {
+            saveError =
+                "Your account information could not be found.";
+
+            return;
+        }
+
+        if (profile.DateOfBirth.HasValue &&
+            profile.DateOfBirth.Value.Date > DateTime.Today)
+        {
+            saveError =
+                "Date of birth cannot be in the future.";
+
+            return;
+        }
+
+        isSaving = true;
+
+        try
+        {
+            currentUser.FullName = profile.FullName.Trim();
+            currentUser.DateOfBirth = profile.DateOfBirth;
+            currentUser.Gender = profile.Gender;
+            currentUser.Occupation = profile.Occupation.Trim();
+            currentUser.CurrentAddress = profile.CurrentAddress.Trim();
+            currentUser.City = profile.City.Trim();
+            currentUser.Province = profile.Province;
+            currentUser.PostalCode = profile.PostalCode
+                .Trim()
+                .ToUpperInvariant();
+
+            currentUser.EmergencyContactName =
+                profile.EmergencyContactName.Trim();
+
+            currentUser.EmergencyContactPhone =
+                profile.EmergencyContactPhone.Trim();
+
+            currentUser.PhoneNumber = profile.PhoneNumber.Trim();
+
+            var result = await UserManager.UpdateAsync(currentUser);
+
+            if (!result.Succeeded)
+            {
+                saveError = string.Join(
+                    ", ",
+                    result.Errors.Select(error => error.Description));
+
+                return;
+            }
+
+            NavigationManager.NavigateTo("/renter/dashboard");
+        }
+        catch
+        {
+            saveError =
+                "Your profile could not be saved. Please try again.";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private sealed class ProfileInput
+    {
+        [Required]
+        [MaxLength(100)]
+        public string FullName { get; set; } = string.Empty;
+
+        [Phone]
+        public string PhoneNumber { get; set; } = string.Empty;
+
+        [DataType(DataType.Date)]
+        public DateTime? DateOfBirth { get; set; }
+
+        [MaxLength(30)]
+        public string Gender { get; set; } = string.Empty;
+
+        [MaxLength(100)]
+        public string Occupation { get; set; } = string.Empty;
+
+        [MaxLength(200)]
+        public string CurrentAddress { get; set; } = string.Empty;
+
+        [MaxLength(100)]
+        public string City { get; set; } = string.Empty;
+
+        [MaxLength(50)]
+        public string Province { get; set; } = string.Empty;
+
+        [MaxLength(20)]
+        public string PostalCode { get; set; } = string.Empty;
+
+        [MaxLength(100)]
+        public string EmergencyContactName { get; set; } = string.Empty;
+
+        [Phone]
+        [MaxLength(30)]
+        public string EmergencyContactPhone { get; set; } = string.Empty;
+    }
+}

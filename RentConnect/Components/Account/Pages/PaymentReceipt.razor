@@ -1,0 +1,277 @@
+﻿@page "/payment-receipt/{PaymentId:int}"
+@rendermode InteractiveServer
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Renter")]
+
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.JSInterop
+@using RentConnect.Data
+@using RentConnect.Models
+
+@inject ApplicationDbContext DbContext
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject IJSRuntime JavaScript
+
+<PageTitle>Payment Receipt | RentConnect</PageTitle>
+
+<div class="container py-5">
+    @if (isLoading)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary"></div>
+            <p class="text-muted mt-3">Loading receipt...</p>
+        </div>
+    }
+    else if (!string.IsNullOrWhiteSpace(errorMessage))
+    {
+        <div class="alert alert-danger">
+            @errorMessage
+        </div>
+
+        <a class="btn btn-primary"
+           href="/my-payments">
+            Back to Payment History
+        </a>
+    }
+    else if (payment is not null)
+    {
+        <div class="receipt-card mx-auto">
+            <div class="card border-0 shadow">
+                <div class="card-body p-5">
+                    <div class="d-flex justify-content-between
+                        align-items-start mb-4">
+                        <div>
+                            <h1 class="fw-bold text-primary mb-1">
+                                RentConnect
+                            </h1>
+
+                            <div class="text-muted">
+                                Payment receipt
+                            </div>
+                        </div>
+
+                        <span class="badge bg-success fs-6">
+                            Paid
+                        </span>
+                    </div>
+
+                    <hr />
+
+                    <div class="row g-4 my-3">
+                        <div class="col-12 col-md-6">
+                            <div class="small text-muted">
+                                Receipt number
+                            </div>
+
+                            <div class="fw-semibold font-monospace">
+                                @payment.TransactionReference
+                            </div>
+                        </div>
+
+                        <div class="col-12 col-md-6">
+                            <div class="small text-muted">
+                                Payment date
+                            </div>
+
+                            <div class="fw-semibold">
+                                @(payment.PaymentDate
+                                    .ToLocalTime()
+                                    .ToString("MMMM d, yyyy h:mm tt"))
+                            </div>
+                        </div>
+
+                        <div class="col-12 col-md-6">
+                            <div class="small text-muted">
+                                Renter
+                            </div>
+
+                            <div class="fw-semibold">
+                                @payment.RenterEmail
+                            </div>
+                        </div>
+
+                        <div class="col-12 col-md-6">
+                            <div class="small text-muted">
+                                Payment method
+                            </div>
+
+                            <div class="fw-semibold">
+                                @payment.PaymentMethod
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr />
+
+                    <h3 class="h5 fw-bold mb-3">
+                        Payment details
+                    </h3>
+
+                    <div class="row g-4">
+                        <div class="col-12">
+                            <div class="small text-muted">
+                                Apartment
+                            </div>
+
+                            <div class="fw-semibold">
+                                @(payment.UtilityBill?.Apartment?.Title
+                                    ?? "Apartment")
+                            </div>
+
+                            <div class="text-muted">
+                                @(payment.UtilityBill?.Apartment?.Address
+                                    ?? "Address unavailable")
+                            </div>
+                        </div>
+
+                        <div class="col-6">
+                            <div class="small text-muted">
+                                Bill type
+                            </div>
+
+                            <div class="fw-semibold">
+                                @(payment.UtilityBill?.BillType
+                                    ?? "Utility Bill")
+                            </div>
+                        </div>
+
+                        <div class="col-6">
+                            <div class="small text-muted">
+                                Due date
+                            </div>
+
+                            <div class="fw-semibold">
+                                @(payment.UtilityBill?.DueDate
+                                    .ToString("MMM d, yyyy")
+                                    ?? "Unavailable")
+                            </div>
+                        </div>
+
+                        <div class="col-12">
+                            <div class="small text-muted">
+                                Description
+                            </div>
+
+                            <div>
+                                @(payment.UtilityBill?.Description
+                                    ?? "No description")
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-light rounded-3 p-4 mt-4
+                        d-flex justify-content-between
+                        align-items-center">
+                        <span class="fs-5 fw-semibold">
+                            Total paid
+                        </span>
+
+                        <span class="display-6 fw-bold text-success">
+                            @payment.Amount.ToString("C")
+                        </span>
+                    </div>
+
+                    <div class="text-center text-muted small mt-4">
+                        Thank you for your payment.
+                    </div>
+                </div>
+            </div>
+
+            <div class="d-flex gap-3 justify-content-center mt-4 no-print">
+                <button class="btn btn-primary"
+                        @onclick="PrintReceipt">
+                    Print Receipt
+                </button>
+
+                <a class="btn btn-outline-primary"
+                   href="/my-payments">
+                    Payment History
+                </a>
+            </div>
+        </div>
+    }
+</div>
+
+<style>
+    .receipt-card {
+        max-width: 800px;
+    }
+
+    @@media print {
+        header,
+        footer,
+        .no-print {
+            display: none !important;
+        }
+
+        .receipt-card {
+            max-width: 100%;
+        }
+
+        .card {
+            box-shadow: none !important;
+            border: 1px solid #dddddd !important;
+        }
+    }
+</style>
+
+@code {
+    [Parameter]
+    public int PaymentId { get; set; }
+
+    private Payment? payment;
+
+    private bool isLoading = true;
+
+    private string? errorMessage;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        try
+        {
+            var authenticationState =
+                await AuthenticationStateProvider
+                    .GetAuthenticationStateAsync();
+
+            string? renterId = authenticationState.User
+                .FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            if (string.IsNullOrWhiteSpace(renterId))
+            {
+                errorMessage =
+                    "Your account information could not be found.";
+
+                return;
+            }
+
+            payment = await DbContext.Payments
+                .AsNoTracking()
+                .Include(item => item.UtilityBill)
+                .ThenInclude(bill => bill!.Apartment)
+                .FirstOrDefaultAsync(item =>
+                    item.Id == PaymentId &&
+                    item.RenterId == renterId);
+
+            if (payment is null)
+            {
+                errorMessage =
+                    "This payment receipt could not be found.";
+            }
+        }
+        catch
+        {
+            errorMessage =
+                "The receipt could not be loaded. Please try again.";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task PrintReceipt()
+    {
+        await JavaScript.InvokeVoidAsync("window.print");
+    }
+}

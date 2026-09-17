@@ -1,0 +1,499 @@
+﻿@page "/landlord/add-apartment"
+@rendermode InteractiveServer
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Landlord")]
+
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Forms
+@using RentConnect.Data
+@using RentConnect.Models
+
+@inject ApplicationDbContext DbContext
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager NavigationManager
+@inject IWebHostEnvironment WebHostEnvironment
+
+<PageTitle>Add Apartment</PageTitle>
+
+<div class="container py-4">
+    <div class="form-container">
+        <div class="mb-4">
+            <h1>Add Apartment</h1>
+
+            <p class="text-muted">
+                Enter the apartment details and upload its images.
+            </p>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(errorMessage))
+        {
+            <div class="alert alert-danger">
+                @errorMessage
+            </div>
+        }
+
+        <EditForm Model="@apartment"
+                  OnValidSubmit="@SaveApartment"
+                  FormName="add-apartment-form">
+
+            <DataAnnotationsValidator />
+            <ValidationSummary class="text-danger" />
+
+            <div class="mb-3">
+                <label class="form-label">
+                    Apartment title
+                </label>
+
+                <InputText class="form-control"
+                           @bind-Value="apartment.Title"
+                           placeholder="Example: Modern one-bedroom apartment" />
+
+                <ValidationMessage For="@(() => apartment.Title)" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">
+                    Address
+                </label>
+
+                <InputText class="form-control"
+                           @bind-Value="apartment.Address"
+                           placeholder="Enter the apartment address" />
+
+                <ValidationMessage For="@(() => apartment.Address)" />
+            </div>
+
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">
+                        Monthly rent
+                    </label>
+
+                    <InputNumber class="form-control"
+                                 @bind-Value="apartment.MonthlyRent"
+                                 step="0.01" />
+
+                    <ValidationMessage For="@(() => apartment.MonthlyRent)" />
+                </div>
+
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">
+                        Bedrooms
+                    </label>
+
+                    <InputNumber class="form-control"
+                                 @bind-Value="apartment.Bedrooms" />
+
+                    <ValidationMessage For="@(() => apartment.Bedrooms)" />
+                </div>
+
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">
+                        Bathrooms
+                    </label>
+
+                    <InputNumber class="form-control"
+                                 @bind-Value="apartment.Bathrooms" />
+
+                    <ValidationMessage For="@(() => apartment.Bathrooms)" />
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">
+                    Apartment images
+                </label>
+
+                <InputFile class="form-control"
+                           OnChange="@HandleImagesSelected"
+                           accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
+                           multiple />
+
+                <div class="form-text">
+                    Select up to 8 images. Each image must be 5 MB or smaller.
+                </div>
+            </div>
+
+            @if (selectedImages.Count > 0)
+            {
+                <div class="mb-4">
+                    <div class="d-flex justify-content-between
+                        align-items-center mb-2">
+                        <h5 class="mb-0">
+                            Selected images
+                        </h5>
+
+                        <span class="text-muted">
+                            @selectedImages.Count / @MaximumImageCount
+                        </span>
+                    </div>
+
+                    <div class="row g-3">
+                        @foreach (SelectedImage image in selectedImages)
+                        {
+                            <div class="col-6 col-md-4"
+                                 @key="image">
+                                <div class="image-card">
+                                    <img src="@image.PreviewUrl"
+                                         alt="@image.FileName"
+                                         class="image-preview" />
+
+                                    @if (selectedImages.IndexOf(image) == 0)
+                                    {
+                                        <span class="badge bg-primary
+                                            primary-badge">
+                                            Main image
+                                        </span>
+                                    }
+
+                                    <button type="button"
+                                            class="btn btn-sm btn-danger
+                                        remove-button"
+                                            @onclick="() =>
+                                                                                        RemoveSelectedImage(image)">
+Remove
+</button>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+
+            <div class="mb-3">
+                <label class="form-label">
+                    Description
+                </label>
+
+                <InputTextArea class="form-control"
+                               @bind-Value="apartment.Description"
+                               rows="5"
+                               placeholder="Describe the apartment and its features" />
+
+                <ValidationMessage For="@(() => apartment.Description)" />
+            </div>
+
+            <div class="form-check mb-4">
+                <InputCheckbox class="form-check-input"
+                               @bind-Value="apartment.IsAvailable" />
+
+                <label class="form-check-label">
+                    Apartment is available
+                </label>
+            </div>
+
+            <button type="submit"
+                    class="btn btn-primary"
+                    disabled="@isSaving">
+
+                @if (isSaving)
+                {
+                    <span class="spinner-border spinner-border-sm me-2">
+                    </span>
+
+                    <span>Saving...</span>
+                }
+                else
+                {
+                    <span>Save Apartment</span>
+                }
+            </button>
+
+            <a href="/landlord/apartments"
+               class="btn btn-outline-secondary ms-2">
+                Cancel
+            </a>
+        </EditForm>
+    </div>
+</div>
+
+<style>
+    .form-container {
+        max-width: 850px;
+        margin: auto;
+        padding: 30px;
+        background-color: white;
+        border-radius: 12px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+    }
+
+    .image-card {
+        position: relative;
+    }
+
+    .image-preview {
+        width: 100%;
+        height: 160px;
+        object-fit: cover;
+        border: 1px solid #dee2e6;
+        border-radius: 10px;
+    }
+
+    .primary-badge {
+        position: absolute;
+        top: 8px;
+        left: 8px;
+    }
+
+    .remove-button {
+        position: absolute;
+        right: 8px;
+        bottom: 8px;
+    }
+
+    .validation-message {
+        color: #dc3545;
+        font-size: 0.875rem;
+    }
+</style>
+
+@code {
+    private const long MaximumImageSize =
+        5 * 1024 * 1024;
+
+    private const int MaximumImageCount = 8;
+
+    private Apartment apartment = new();
+
+    private List<SelectedImage> selectedImages = [];
+
+    private string? landlordId;
+
+    private string? errorMessage;
+
+    private bool isSaving;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authenticationState =
+            await AuthenticationStateProvider
+                .GetAuthenticationStateAsync();
+
+        landlordId = authenticationState.User
+            .FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+        if (string.IsNullOrWhiteSpace(landlordId))
+        {
+            errorMessage =
+                "Your landlord account could not be found.";
+        }
+    }
+
+    private async Task HandleImagesSelected(
+        InputFileChangeEventArgs eventArgs)
+    {
+        errorMessage = null;
+        selectedImages.Clear();
+
+        IReadOnlyList<IBrowserFile> files;
+
+        try
+        {
+            files = eventArgs.GetMultipleFiles(
+                MaximumImageCount);
+        }
+        catch
+        {
+            errorMessage =
+                $"You can upload a maximum of {MaximumImageCount} images.";
+
+            return;
+        }
+
+        string[] allowedContentTypes =
+        [
+            "image/jpeg",
+            "image/png",
+            "image/webp"
+        ];
+
+        foreach (IBrowserFile file in files)
+        {
+            if (!allowedContentTypes.Contains(file.ContentType))
+            {
+                selectedImages.Clear();
+
+                errorMessage =
+                    "Every image must be a JPG, PNG, or WebP file.";
+
+                return;
+            }
+
+            if (file.Size > MaximumImageSize)
+            {
+                selectedImages.Clear();
+
+                errorMessage =
+                    $"The image '{file.Name}' is larger than 5 MB.";
+
+                return;
+            }
+
+            await using Stream imageStream =
+                file.OpenReadStream(MaximumImageSize);
+
+            using MemoryStream memoryStream = new();
+
+            await imageStream.CopyToAsync(memoryStream);
+
+            byte[] imageBytes = memoryStream.ToArray();
+
+            string extension =
+                file.ContentType switch
+                {
+                    "image/jpeg" => ".jpg",
+                    "image/png" => ".png",
+                    "image/webp" => ".webp",
+                    _ => throw new InvalidOperationException(
+                        "Unsupported image format.")
+                };
+
+            selectedImages.Add(
+                new SelectedImage
+                {
+                    FileName = file.Name,
+                    Extension = extension,
+                    Content = imageBytes,
+                    PreviewUrl =
+                        $"data:{file.ContentType};base64," +
+                        Convert.ToBase64String(imageBytes)
+                });
+        }
+    }
+
+    private void RemoveSelectedImage(
+        SelectedImage image)
+    {
+        selectedImages.Remove(image);
+    }
+
+    private async Task SaveApartment()
+    {
+        if (isSaving)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(landlordId))
+        {
+            errorMessage =
+                "Your landlord account could not be found.";
+
+            return;
+        }
+
+        isSaving = true;
+        errorMessage = null;
+
+        List<string> savedImageUrls = [];
+
+        try
+        {
+            apartment.LandlordId = landlordId;
+            apartment.DatePosted = DateTime.UtcNow;
+
+            for (int index = 0;
+                 index < selectedImages.Count;
+                 index++)
+            {
+                string imageUrl =
+                    await SaveImageFile(selectedImages[index]);
+
+                savedImageUrls.Add(imageUrl);
+
+                ApartmentImage apartmentImage =
+                    new()
+                    {
+                        ImageUrl = imageUrl,
+                        IsPrimary = index == 0,
+                        DateUploaded = DateTime.UtcNow
+                    };
+
+                apartment.Images.Add(apartmentImage);
+
+                if (index == 0)
+                {
+                    apartment.ImageUrl = imageUrl;
+                }
+            }
+
+            DbContext.Apartments.Add(apartment);
+
+            await DbContext.SaveChangesAsync();
+
+            NavigationManager.NavigateTo(
+                "/landlord/apartments",
+                forceLoad: true);
+        }
+        catch
+        {
+            foreach (string imageUrl in savedImageUrls)
+            {
+                DeleteLocalImageFile(imageUrl);
+            }
+
+            errorMessage =
+                "The apartment could not be saved. Please try again.";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task<string> SaveImageFile(
+        SelectedImage image)
+    {
+        string fileName =
+            $"{Guid.NewGuid():N}{image.Extension}";
+
+        string uploadsFolder =
+            Path.Combine(
+                WebHostEnvironment.WebRootPath,
+                "uploads",
+                "apartments");
+
+        Directory.CreateDirectory(uploadsFolder);
+
+        string filePath =
+            Path.Combine(
+                uploadsFolder,
+                fileName);
+
+        await File.WriteAllBytesAsync(
+            filePath,
+            image.Content);
+
+        return $"/uploads/apartments/{fileName}";
+    }
+
+    private void DeleteLocalImageFile(
+        string imageUrl)
+    {
+        string fileName =
+            Path.GetFileName(imageUrl);
+
+        string filePath =
+            Path.Combine(
+                WebHostEnvironment.WebRootPath,
+                "uploads",
+                "apartments",
+                fileName);
+
+        if (File.Exists(filePath))
+        {
+            File.Delete(filePath);
+        }
+    }
+
+    private sealed class SelectedImage
+    {
+        public required string FileName { get; init; }
+
+        public required string Extension { get; init; }
+
+        public required byte[] Content { get; init; }
+
+        public required string PreviewUrl { get; init; }
+    }
+}
